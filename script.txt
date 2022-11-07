@@ -1,0 +1,120 @@
+Task 3 Data cleaning : 
+
+using hive:
+
+create table email_all(s_no int ,file string, message string , Message_id string , linuxdate bigint ,from_adress string,to_adress string, Subject string , Mime_Version string , Content_Type string , Content_Transfer_Encoding string , X_From string , X_To string , X_cc string , X_bcc string , X_Folder string , X_Origin string , X_FileName string , body string , user_name string ) row format delimited fields terminated by ',' stored as textfile TBLPROPERTIES("skip.header.line.count"="1") ;
+
+load data local inpath '/home/roshankumar_senthilkumar3/emails.csv' into table email ;
+
+create table selected_email_col(from_adress string , subject string , body string) stored as textfile 
+
+insert into table selected_email_col select from_adress , subject , body from email_all 
+
+create table email_clean(from_adress string , subject string , body string) stored as textfile
+
+from selected_email_col insert into email_clean select from_adress , subject ,body  where from_adress <> '' OR body <> ''
+
+loading the hive table as csv:
+hive -e 'select * from email_info.email_clean' | sed 's/[\t]/,/g' > /home/roshankumar_senthilkumar3/cleaned_emails.csv
+
+Task 4.1 : Ham or Spam detection
+
+spam_detection.py : 
+@outputSchema( num:int)
+	Def tot_count(body):
+		Total_count = 0
+bag = [...some bag of spam words…]  #as a list
+		for i in bag:
+		   for x in body.split():
+			If i==x:
+			  total_count = total_count + 1
+		
+		return total_count
+
+
+REGISTER 'spam_detection.py' USING jython AS spam_test;
+
+data = load '/user/cleaned_dataset' using PigStorage(',') as (mail_id:chararray,subject:chararray,body:chararray)
+
+spam = filter data by spam_test.tot_count(body)>2 ;
+
+ham = filter data by spam_test.tot_count(body)<2 ;
+
+store spam into 'user/spam' ;
+
+store ham into 'user/ham' ;
+
+task 4.2 : top 10 spam account 
+
+spam_account = load '/user/spam' using PigStorage(',') as (email_id:chararray,subject:chararray,body:chararray);
+
+groupuser = group spam_account by email_id;
+
+counted = foreach groupuser generate group as email_id,count(spam_account) as cnt;
+
+result = foreach counted generate email_id, cnt;
+
+ordered_result = order result by cnt DESC;
+
+top_10_spam = limit ordered_result 10;
+
+store top_10_spam  into ‘/user/top_10_spam_account’ ;
+
+task 4.3 : top 10 ham account
+
+ham_account = load '/user/spam' using PigStorage(',') as (email_id:chararray,subject:chararray,body:chararray);
+
+groupuser = group ham_account by email_id;
+
+counted = foreach groupuser generate group as email_id,count(spam_account) as cnt
+
+result = foreach counted generate email_id, cnt
+
+ordered_result = order result by cnt DESC;
+
+top_10_ham = limit ordered_result 10;
+
+store top_10_ham  into ‘/user/top_10_ham_account’ ;
+
+task 5 :
+
+top 10 spam keywords:
+
+Top_10_spam = load ‘user/top_10_spam/’ as PigStorage(“\t”) as (id,count);
+
+Top_10_email = foreach  top_10_spam  generate id as col1;
+
+spam_data =  load ‘user/ham/’ as PigStorage(“,”) as (email_id,subject,body);
+
+Grp = group spam_data by email_id;
+
+Filtered_email = filter grp by email_id == id ;
+
+Filtered_email _token = foreach Filtered_email generate (TOKENIZE(body)) as word;
+
+Grp_word = group Filtered_emai_token  by word ;
+
+Word_count = foreach Grp_word generate group , COUNT(Filtered_emai_token ) as cnt;
+
+Ordered_word =ORDER  word_count by cnt DESC;
+
+Top_10_word = limit Ordered_word 10;
+
+Dump Top_10_word
+
+task top 10 ham keywords :
+
+ham_account = load '/user/spam' using PigStorage(',') as (email_id:chararray,subject:chararray,body:chararray);
+
+groupuser = group ham_account by email_id;
+
+counted = foreach groupuser generate group as email_id,count(spam_account) as cnt
+
+result = foreach counted generate email_id, cnt
+
+ordered_result = order result by cnt DESC;
+
+top_10_ham = limit ordered_result 10;
+
+store top_10_ham  into ‘/user/top_10_ham_account’ ;
+
